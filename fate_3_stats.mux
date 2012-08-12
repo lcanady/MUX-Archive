@@ -1,0 +1,594 @@
+## FATE 3 Stat System
+## Copyright (c) 2012 Lemuel Canady
+
+## Description:  Written for Dark Spires MUX.
+##
+##
+##
+
+## WARNING:  This code has been formatted with MUSHFormatter. This code is also AS IS. 
+##           At the time of this writing (8/11/2012) this code is mostly still being
+##           written and should be considered untested for the most part.  This file is
+##           not meant to be copied and pasted or any such thing.  Yet. :)
+##
+##          Also, the commands are generally chunked together right now.  I do plan on
+##          re-organizing once the system is written... hopefully! 
+
+
+
+#############################
+## Staff Commands  
+#############################
+
+## +set
+## 
+## This command is still very.. raw.  I wasn't sure what all Magdalen would need passed
+## Through a +set command, so it accepts anything at the moment.  I suspect I will need
+## to narrow this down soon, and allow for some error checking.
+
+&cmd-+set #250=
+	$+set */* *=*:
+		@switch [or(orflags(%#,wW),orflags(owner(%@),wW))]
+				[isdbref(pmatch(%0))]=
+		0?, {@pemit %#=Permission denied.},
+		10, {@pemit %#=I can't find that player.},
+		11, {&_[edit(%1,%b,_)]_[edit(%2,%b,_)] *%0=%3;
+				@pemit %#=Done. [moniker(*%0)]'s %ch[lcstr(%1)]%cn named %ch[lcstr(%2)]%cn 
+				%bhas been set to: %ch%3%cn
+			}
+-
+
+&cmd_+background #83=
+	$+background *:
+		@switch [isdbref(pmatch(%0))]=
+		0,{@pemit %#=I can't find that player.},
+		1,{@pemit %#=[u(#250/fn_background,*%0)]}
+-
+
+&cmd_+sheet #83=
+	$+sheet *:
+		@switch [isdbref(pmatch(%0))]=
+		1,{@pemit %#=[u(#250/fn_sheet,*%0)]},
+		0,{@pemit %#=I can't find that player.}
+-
+
+&cmd_+stunts #83=
+	$+stunts *:
+		@switch [isdbref(pmatch(%0))]=
+		1,{	@pemit %#=[u(#250/fn_columns_stunts,*%0)]%r
+			Type '%ch+stunt [moniker(*%0)]/<stunt>%cn' to see details.%r
+			[repeat(-,78)] 
+		  },
+		0,{@pemit %#=I can't find that player.}
+-
+
+&cmd_+stunts/detail #83=
+	$+stunt */*:
+		[setq(0,grab(lattr(%#/_stunt_*),*[edit(before(%0,=),%b,_)]*))];
+		@switch [isdbref(pmatch(%0))]
+			[hasattr(*%0,%q0)]=
+		00,	{@pemit %#=I can't find that player.},
+		10,	{@pemit %#=I can't find that stunt.},
+		11,	{	@pemit %#=
+				---[ljust(%[%b%chStunt: [capstr(lcstr(%1))]%b%cn%],75,-)]
+				%r%r%ch[ljust(Player:,12)]%cn%b[moniker(*%0)]
+				%r%r%chDescription:%cn%b
+				[wrap(
+					[get_eval(*%0/_STUNT_[edit(%1,%b,_)])],
+					 66, left,,,13
+				)]%r%r
+				[repeat(-,78)]
+			}
+
+-
+
+&cmd_+stress #83=
+	$+stress */*=*: 
+		[setq(0, ladd(iter(u(#250/fn_%1_stress,*%0),1)) )];
+		@switch [isdbref(pmatch(%0))]
+			[neq(match(physical mental social hunger,%1),0)]
+			[gte(%2,1)]
+			[lte(%2,%q0)]
+			[eq(%2,%q0)]
+			[not(match(get(*%0/_%1_stress), %0))]=
+		0?????, {@pemit %#=I can't find that player.},
+		10????, {@pemit %#=That's not a valid type of stress!},
+		110???, {@pemit %#=You must set at least one stress.},
+			1110??, {@pemit %#=[moniker(*%0)] doesn't have that many stress boxes!},
+		111100, {@pemit %#=You have already filled that stress box.},
+		111101, {	@pemit *%0=GAME: %K sets %ch%2 [lcstr(%1)]%cn stress on you.;
+				@pemit %#=GAME: You set %ch%2 [lcstr(%1)]%cn stress on [moniker(*%0)].;
+				@cemit Rolls=%K sets %ch%2 [lcstr(%1)]%cn stress on [moniker(*%0)].;
+				&_%1_stress *%0=setunion(get(*%0/_%1_stress),%2);
+		        },
+		111111, {	@pemit *%0=GAME: %K sets %ch%2 [lcstr(%1)]%cn stress on you.  Your last stress has been filled!;
+				@pemit %#=GAME: You set %ch%2 [lcstr(%1)]%cn stress on [moniker(*%0)], filling %p last stress box.;
+				@cemit Rolls=%K sets %ch%2 [lcstr(%1)]%cn stress on [moniker(*%0)]. filling %p last stress box.; 
+				&_%1_stress *%0=setunion(get(*%0/_%1_stress),%2);
+		        }
+-				
+
+
+&cmd_+stress/clear #83=
+	$+stress/clear *:
+		
+		[setq(0,before(%0,=))]
+		[setq(1,after(%0,=))]
+		[setq(2,grab(mental physical social hunger,%q1*))];
+		@switch [isdbref(pmatch(*%q0))]
+			[neq(match(mental physical social hunger,%q2),0)]
+			[hasattr(*%q0,_CONSEQUENCE_[edit(%q1,%b,_)])] =
+		0??,{@pemit %#=I can't find that player.},
+		110,{ @pemit %#=You clear [moniker(*%q0)]'s %q2 stress.;
+			@pemit *%q0=GAME: %K clears [moniker(*%q0)]'s %q2 stress.;
+			&_%q2_stress *%q0=;
+		},
+		100,{@pemit %#=You clear all of [moniker(*%q0)]'s stress.;
+			@pemit *%q0=GAME: %K cleared all of your stress.;
+			@dolist [lattr(*%q0/*_stress)]=&## *%q0=;
+		},
+		101, {@pemit %#=You clear [moniker(*%q0)]'s consequence: %ch[lcstr(%q1)]%cn;
+			@pemit *%q0=GAME: %K clears your consequence: %ch[lcstr(%q1)]%cn; 
+			&_consequence_[edit(%q1,%b,_)] *%q0=; 
+		}
+-			
+&cmd_+stress_readout #83=
+	$+stress *:
+		@switch [isdbref(pmatch(%0))]=
+		0, { @pemit %#=I can't find that player.},
+		1, { @pemit %#=---[ljust(%[%b%ch+STRESS for [moniker(*%0)]%cn%b%],75,-)]%r%r
+		 	[ljust([rjust(%chPhysical Stress:%b,17)][u(#250/fn_physical_stress,*%0)],39)]%r
+			[ljust([rjust(%chMental Stress:%b,17)][u(#250/fn_mental_stress,*%0)],39)]%r
+			[ljust([rjust(%chSocial Stress:%b,17)][u(#250/fn_social_stress,*%0)],39)]%r
+			[if(hasattr(*%0,_power_feeding_dependency),
+		   		[ljust([rjust(%chHunger Stress:%b,17)][u(#250/fn_hunger_stress,%0)],39)]%r
+			)]%r
+			%cn---\[ %ch%cwType%cn \]----\[ %ch%cwP/S/M/H%cn \]---\[ %ch%cwStress%cn \]--\[ %ch%cwAspect%cn \][repeat(-,16)]\[ %ch%cwDate%cn \]---%r
+			[iter(
+				lattr(*%0/_CONSEQUENCE_*),
+				%r%b%b%b[ljust( capstr(extract(get(*%0/##),1,1,/)),11,.)]%b
+				[ljust(capstr(extract(get(*%0/##),2,1,/)),13,.)]%b
+				[rjust(capstr(extract(get(*%0/##),3,1,/)),10,.)]%b%b
+				[ljust([capstr(lcstr(edit(after(##,_CONSEQUENCE_),_,%b)))],25,.)]%b
+				[timefmt($m/$d/$y,extract(get(*%0/##),4,1,/))]%b	
+
+
+			)]%r%r
+			[repeat(-,78)]
+		   }
+-
+&cmd_+stress/consequence #83=
+	$+stress/consequence * */*=*:
+		[setq(0,grab(mild moderate severe extreme,%1*))]
+		[setq(1,grab(physical mental social hunger,%2*))];
+		@switch [isdbref(pmatch(%0))]
+			[neq(match(physical mental social hunger,%2*),0)]
+			[neq(match(mild moderate severe extreme,%1*),0)]=
+		0??, { @pemit %#=I can't find that player.},
+		10?, { @pemit %#=Valid types are physical, mental, social, and hunger.},
+		110, { @pemit %#=Valid levels are mild, moderate, severe, and extreme.},
+		111, { @pemit %#=You set a %q0 %q1 consequence on [moniker(*%0)]: %ch%3%cn;
+			@pemit *%0=GAME: %K set a new %q0 %q1 consequence on you: %ch%3%cn;
+			@cemit Rolls= %K set a new %q0 %q1 consequence on [moniker(*%0)]: %ch%3%cn;
+			 &_consequence_[edit(%3,%b,_)] *%0=[lcstr(%q0)]/[lcstr(%q1)]/
+			[switch(%q0,mild,-2,moderate,-4,severe,-6,extreme,-8,0)]/[secs()];
+		}
+
+-
+
+#############################
+## Functions  
+#############################
+
+&fn_skillladder #250=
+	[setq(a,iter(lattr(%0/_skill*),get(%0/##),,%,))]
+	[setq(b,last(sort(%qa,,%,),%,))]
+	[iter(reverse(lnum(1,%qb)),%r%ch%cy[rjust(ucstr(u(fn_ladder,##)),9)]:%cn%b
+	[itemize(u(fn_skilllist,%0,##),|)] )]
+-
+
+&fn_skilllist #250=
+	iter(
+	    iter(
+	        lattr(%0/_skill*),
+	        if(
+	            match(get(%0/##),%1),
+	            [after(##,_SKILL_)]
+	        )
+	    ),
+	    capstr(lcstr(edit(##,_,%b))),,|
+	)
+-
+
+&fn_format_consequence #250=
+	[if(
+		hasattr(%0,%1),
+		ljust(
+			[if(hasattr(%0,CNOTE_[after(%1,_CONSEQUENCE_)]),*%b)]
+			[capstr(lcstr(edit(after(%1,_CONSEQUENCE_),_,%b)))]
+			%(%ch[lcstr(extract(get(%0/%1),1,1,/))]%cn%,%b
+			%ch[lcstr(extract(get(%0/%1),2,1,/))]%cn%)
+			%[%ch[extract(get(%0/%1),3,1,/)]%cn%]
+			,39
+		),
+		[space(39)]
+	)]
+-
+
+&sheet-aspects #250=
+	[setq(a,
+		sort(setdiff(
+			lattr(%0/_aspect*),
+			_ASPECT_TEMPLATE _ASPECT_CONCEPT _ASPECT_TROUBLE
+		))
+	)]
+	[setq(b,sort(lattr(%0/_consequence*)))]
+	[setq(c,max(words(%qa),words(%qb)))]
+	---[ljust(%[%b%chASPECTS%cn%b%],36,-)]
+	---[ljust(%[%b%chSTRESS%cn%b%],36,-)]%r
+
+	%r%ch[ljust([rjust(Template,8)]:%cn [capstr(lcstr(get(%0/_aspect_template)))],39)]
+	[ljust([rjust(%chPhysical Stress:%b,17)][u(fn_physical_stress,%0)],39)]
+	%r%ch[ljust([rjust(Concept,8)]:%b%cn [capstr(lcstr(get(%0/_aspect_concept)))],39)]
+	[ljust([rjust(%chMental Stress:%b,17)][u(fn_mental_stress,%0)],39)]
+	%r%ch[ljust([rjust(Trouble,8)]:%b%cn [capstr(lcstr(get(%0/_aspect_trouble)))],39)]
+	[ljust([rjust(%chSocial Stress:%b,17)][u(fn_social_stress,%0)],39)]
+	%r[space(39)]
+		[if(hasattr(%0,_power_feeding_dependency),
+		     [ljust([rjust(%chHunger Stress:%b,17)][u(fn_hunger_stress,%0)],39)]
+		)]		
+	%r[ljust(%chOther Aspects:%cn,39)][ljust(%chConsequences:%cn,39)]
+	[setq(a,
+		sort(setdiff(
+			lattr(%0/_aspect*),
+			_ASPECT_TEMPLATE _ASPECT_CONCEPT _ASPECT_TROUBLE
+		))
+	)]
+	[setq(b,sort(lattr(%0/_consequence*)))]
+	[setq(c,max(words(%qa),words(%qb)))]
+
+	[iter(
+		lnum(1,%qc),
+		%r[ljust(capstr(lcstr(get(%0/[extract(%qa,##,1)]))),39)]
+		[u(fn_format_consequence,%0,[extract(%qb,##,1)])]
+	)]
+-
+
+&fn_background #250=
+			---[ljust(=<%bBackground for [moniker(*%0)]%b>=,75,-)]
+			%r%ch[rjust(Template,8)]:%cn [capstr(lcstr(get(*%0/_aspect_template)))]
+			%r%ch[rjust(Concept,8)]:%cn [capstr(lcstr(get(*%0/_aspect_concept)))]
+			%r%ch[rjust(Trouble,8)]:%cn [capstr(lcstr(get(*%0/_aspect_trouble)))]%r%r
+			%chWhere did you come from?%cn%r
+			[default(%#/background_1,Not Set.)]%r
+			%chAspect:%cn%b[default(%#/_aspect_1,Not Set.)]%r%r
+			%chWhat shaped you?%cn%r
+			[default(%#/background_2,Not Set.)]%r
+			%chAspect:%cn%b[default(%#/_aspect_2,Not Set.)]%r%r
+			%chWhat was your first story?%cn%r
+			[default(%#/background_3,Not Set.)]%r
+			%chAspect:%cn%b[default(%#/_aspect_3,Not Set.)]%r%r
+			%chWho's story has crossed your path?%cn%r
+			[default(%#/background_4,Not Set.)]%r
+			%chAspect:%cn%b[default(%#/_aspect_4,Not Set.)]%r%r
+			%chWho else's path have you crossed?%cn%r
+			[default(%#/background_5,Not Set.)]%r
+			%chAspect:%cn%b[default(%#/_aspect_5,Not Set.)]%r
+			[repeat(-,78)]
+		
+-
+
+&fn_sheet #250=
+	---[ljust(=<%bCharacter Sheet for [moniker(%0)]%b>=,75,-)]%r
+	%r
+	[if(
+		hasattr(%0,_approved),
+		Approved by %ch[moniker([before(get(%0/_approved),/)])]%cn on 
+		%ch[convsecs(after(get(%0/_approved),/))]%cn.,
+		%ch%crNot Approved%cn
+	)]%r%r
+	%chRefresh:%cn%b[default(%0/_refresh,0)]%r
+	%chFate Points:%cn%b[default(%0/_fatepoints,0)]%r%r
+	  
+	[u(sheet-aspects,%0)]%r%r
+	---[ljust(%[%b%chSKILLS%cn%b%],75,-)]%r
+	[u(sheet-skills,%0)]%r
+	[u(sheet_powers_stunts,%0)]%r
+	[repeat(-,78)]
+-
+
+&fn_format_power #250=
+	[if(
+		hasattr(%0,%1),
+		ljust(
+			[if(hasattr(%0,CNOTE_[after(%1,_POWER_)]),%b*%b,%b%b%b)]
+			[capstr(lcstr(edit(after(%1,_POWER_),_,%b)))]%b
+			%[[before(get(%0/%1),/)]%]
+			[if(after(get(%0/%1),/),%(%ch[lcstr(after(get(%0/%1),/))]%cn%))]
+			,38
+		),
+		[space(38)]
+	)]
+-
+
+
+&fn_format_stunt #250=
+	[if(
+		hasattr(%0,%1),
+		ljust(
+			[if(hasattr(%0,CNOTE_[after(%1,_STUNT_)]),%b*%b,%b%b%b)]
+			[capstr(lcstr(edit(after(%1,_STUNT_),_,%b)))]%b
+			,38
+		),
+		[space(38)]
+	)]
+
+-
+
+&sheet_powers_stunts #250=
+	[setq(a,[max([words(lattr(%0/_POWER_*))],[words(lattr(%0/_STUNT_*))])])]
+	[setq(b,sort(lattr(%0/_POWER_*)))]
+	[setq(c,sort(lattr(%0/_STUNT_*)))]
+	[if( or( neq(words(%qb),0), neq(words(%qc),0)),
+	%r---[ljust(%[%b%chPOWERS%cn%b%],36,-)]
+	---[ljust(%[%b%chSTUNTS%cn%b%],36,-)]%r
+	[iter(
+		lnum(1,%qa),
+		%r[u(fn_format_power,%0,extract(%qb,##,1))]|[u(fn_format_stunt,%0,extract(%qc,##,1))]
+	)]%r%r
+	%ch%cyNOTE:%cn Powers or stunts with a '%xh*%cn' have a character note attached.%r
+	)] 
+
+-
+
+&FN_TOUGHNESS_TRACK #250= 
+	[setq(d,lattr(%0/_power_*toughness) )]
+	[switch(1,
+		strmatch(after(%qd,_POWER_),INHUMAN_TOUGHNESS),2,
+		strmatch(after(%qd,_POWER_),SUPERNATURAL_TOUGHNESS),4,
+		strmatch(after(%qd,_POWER_),MYTHIC_TOUGHNESS),6,
+		strmatch(after(%qd,_POWER_),PHYSICAL_IMMUNITY),4,
+		0
+	)]
+
+&fn_physical_stress #250=
+	[iter(
+		lnum(1,u(#250/fn_base_track,%0,endurance)),
+		if(neq(match(get(%0/_physical_stress),##),0),%crX%cn,O)
+	)]
+	[if(
+		u(fn_toughness_track,%0),
+		%b%ch%(%cn%b[iter(
+			lnum(1,u(#250/fn_toughness_track,%0)),
+			if(neq(match(get(%0/_physical_stress),##),0),%crX%cn,O)
+		)]%b%ch%)%cn	
+
+	)]
+-
+&fn_mental_stress #250=
+	[iter(
+		lnum(
+			1,
+			u(#250/fn_base_track,%0,conviction)
+		),
+		if(
+			neq(match(get(%0/_mental_stress),##),0),
+			%crX%cn,
+			O
+		)
+	)]
+-
+&fn_social_stress #250=
+	[iter(
+		lnum(
+			1,
+			u(#250/fn_base_track,%0,presence)
+		),
+		if(
+			neq(match(get(%0/_social_stress),##),0),
+			%crX%cn,
+			O
+		)
+	)]
+-
+&fn_hunger_stress #250=
+	[iter(
+		lnum(
+			1,
+			u(#250/fn_base_track,%0,discipline)
+		),
+		if(
+			neq(match(get(%0/_hunger_stress),##),0),
+			%crX%cn,
+			O
+		)
+	)]
+-
+&fn_get_stunts #250=
+	sort(	
+		iter(
+			lattr(%0/_STUNT_*),
+			capstr(lcstr(edit(after(##,_STUNT_),_,%b)))
+			,,| 
+		),,
+		|
+	)
+		
+-
+&fn_columns_stunts #250=
+	---[ljust(%[%b%xh Stunts for [moniker(%0)]%cn%b%],75,-)]%r%r
+	[columns(u(fn_get_stunts,%0),39,|)]
+-
+
+#############################
+## Global Commands  
+#############################
+
+&cmd_+background #81=
+	$+background:
+		@Pemit %#=[u(#250/fn_background,%#)]
+-
+
+&cmd_+sheet #81=
+	$+sheet:@pemit %#=[u(#250/fn_sheet,%#)]
+-
+
+&cmd_+mystunts #81=
+	$+mystunts:
+			@pemit %#=[u(#250/fn_columns_stunts,%#)]%r
+			Type '%ch+mystunts <stunt>%cn' to see details.%r
+			[repeat(-,78)] 
+-
+
+&cmd_+mystunts_list  #81= 
+	$+mystunts *:
+		[setq(0,grab(lattr(%#/_stunt_*),*[edit(before(%0,=),%b,_)]*))];
+		@switch [hasattr(%#,%q0)]=	
+		0,{@pemit %#=I can't find that stunt!},
+		1,{	@pemit %#=
+			---[ljust(%[%b%chStunt: [capstr(lcstr(edit(after(%q0,_STUNT_),_,%b)))]%b%],75,-)]
+			%r%r%ch[ljust(Player:,12)]%cn%b[moniker(%#)]
+			%r%r%chDescription:%cn%b
+			[wrap(
+				[get_eval(%#/%q0)],
+				 66, left,,,13
+			)]%r%r
+			[repeat(-,78)]
+		}
+-
+
+&cmd_+mystunts/prove #81=
+	$+mystunts/prove *:
+		[setq(0,after(%0,=))]
+		[setq(1,iter(%q0,pmatch(##)))]
+		[setq(2,grab(lattr(%#/_stunt_*),*[edit(before(%0,=),%b,_)]*))];
+		@switch [hasattr(%#,%q2)]=
+		1,{
+		@if [after(%0,=)]=
+		{	@pemit %q1=
+			---[ljust(%[%b%ch+MYSUNTS/PROVE: [capstr(lcstr(edit(after(%q2,_STUNT_),_,%b)))]%b%],75,-)]
+			%r%r%ch[ljust(Player:,12)]%cn%b[moniker(%#)]
+			%r%r%chDescription:%cn%b
+			[wrap(
+				[get_eval(%#/%q2)],
+				 66, left,,,13
+			)]%r%r
+			[repeat(-,78)];
+			@pemit %#=GAME: You prove your stunt %ch[capstr(lcstr(edit(after(%q2,_STUNT_),_,%b)))]%cn
+				%bto [itemize(iter(%q0,moniker(*##),,|),|)].;
+			@dolist %q1={@pemit ## =[get_eval(##/auth_prove)];
+		}
+
+		},
+		{
+			@remit [loc(%#)] =
+			---[ljust(%[%b%ch+MYSUNTS/PROVE: [capstr(lcstr(edit(after(%q2,_STUNT_),_,%b)))]%b%],75,-)]
+			%r%r%ch[ljust(Player:,12)]%cn%b[moniker(%#)]
+			%r%r%chDescription:%cn%b
+			[wrap(
+				[get_eval(%#/_STUNT_[edit(before(%0,=),%b,_)])],
+				 66, left,,,13
+			)]%r%r
+			[repeat(-,78)];
+			@dolist [lcon(loc(%#))]={@pemit ## =[get_eval(##/auth_prove)];}
+
+		};
+		},
+		0,{@pemit %#=I can't find that stunt!}
+-
+&cmd_+stress/add #81=
+	$+stress/add *=*: 
+		[setq(0, ladd(iter(u(#250/fn_%0_stress,%#),1)) )];
+		@switch [neq(match(physical mental social hunger,%0),0)]
+			[gte(%1,1)]
+			[lte(%1,%q0)]
+			[eq(%1,%q0)]
+			[not(match(get(%#/_%0_stress), %1))]=
+		0????, {@pemit %#=GAME: That's not a valid type of stress!},
+		10???, {@pemit %#=GAME: You must set at least one stress.},
+		110??, {@pemit %#=GAME: You don't have that many stress boxes!},
+		111?0, {@pemit %#=GAME: You have already filled that stress box.},
+		11101, {	@remit loc(%#) = GAME: %K sets %ch%1 [lcstr(%0)]%cn stress on %oself.;
+				@cemit Rolls=%K sets %ch%1 [lcstr(%0)]%cn stress on %oself.;
+				&_%0_stress %#=setunion(get(%#/_%0_stress),%1);
+		        },
+		11111, {	@remit loc(%#)=GAME: %K sets %ch%1 [lcstr(%0)]%cn stress on %oself, filling %p last%b
+					stress box.;
+				@cemit Rolls=%K sets %ch%1 [lcstr(%0)]%cn stress on %oself, filling %p last%b
+					 stress box.; 
+				&_%0_stress %#=setunion(get(%#/_%0_stress),%1);
+		        }
+-				
+
+
+&cmd_+stress/clear #81=
+	$+stress/clear *:
+		
+		
+		[setq(0,grab(mental physical social hunger,%0*))]
+		[setq(1,lattr(%#/_consequence_[edit(%0,%b,_)]*))];
+		@switch [neq(match(mental physical social hunger,%0),0)]
+			[hasattr(%#,%q1)]
+			[match(lcstr(%0),all)] =
+		000,{ @pemit %#=I don't know what you want to clear!},
+		100,{@remit loc(%#)=GAME: %K clears %p %q0 stress.;
+			@cemit Rolls=%K clears %p %q0 stress.;
+			&_%q0_stress %#=;
+		},
+		001,{@remit loc(%#) =%K cleared all of %p stress.;
+			@cemit Rolls=%K cleared all of %p stress.;
+			@dolist [lattr(%#/*_stress)]=&## %#=;
+		},
+		010, {@remit loc(%#) =GAME: %K clears %p consequence:%b
+			%ch[lcstr(edit(after(%q1,_CONSEQUENCE_),_,%b))]%cn; 
+			@cemit Rolls=GAME: %K clears %p consequence:%b
+			%ch[lcstr(edit(after(%q1,_CONSEQUENCE_),_,%b))]%cn;
+			@if strmatch(get(%#/%q1),*extreme*)=
+			{	@cemit Staff=GAME: %K clears %p extreme consequence:%b
+					%ch[lcstr(edit(after(%q1,_CONSEQUENCE_),_,%b))]%cn;
+			};
+			&%q1 %#=; 
+			
+		}
+-
+
+&cmd_+stress_readout #81=
+	$+stress:
+		@pemit %#=---[ljust(%[%b%ch+STRESS for [moniker(%#)]%cn%b%],75,-)]%r%r
+			[ljust([rjust(%chPhysical Stress:%b,17)][u(#250/fn_physical_stress,*%0)],39)]%r
+			[ljust([rjust(%chMental Stress:%b,17)][u(#250/fn_mental_stress,*%0)],39)]%r
+			[ljust([rjust(%chSocial Stress:%b,17)][u(#250/fn_social_stress,*%0)],39)]%r
+			[if(hasattr(*%0,_power_feeding_dependency),
+		   		[ljust([rjust(%chHunger Stress:%b,17)][u(#250/fn_hunger_stress,%0)],39)]%r
+			)]%r
+			%cn---\[ %ch%cwType%cn \]----\[ %ch%cwP/S/M/H%cn \]---\[ %ch%cwStress%cn \]--\[ %ch%cwAspect%cn \][repeat(-,16)]\[ %ch%cwDate%cn \]---%r
+			[iter(
+				lattr(*%0/_CONSEQUENCE_*),
+				%r%b%b%b[ljust( capstr(extract(get(*%0/##),1,1,/)),11,.)]%b
+				[ljust(capstr(extract(get(*%0/##),2,1,/)),13,.)]%b
+				[rjust(capstr(extract(get(*%0/##),3,1,/)),10,.)]%b%b
+				[ljust([capstr(lcstr(edit(after(##,_CONSEQUENCE_),_,%b)))],25,.)]%b
+				[timefmt($m/$d/$y,extract(get(*%0/##),4,1,/))]%b	
+
+
+			)]%r%r
+			[repeat(-,78)]
+-	
+&cmd_+stress/consequence #81=
+	$+stress/consequence */*=*:
+		[setq(0,grab(mild moderate severe extreme,%0*))]
+		[setq(1,grab(physical mental social hunger,%1*))];
+		@switch [neq(match(physical mental social hunger,%1*),0)]
+			[neq(match(mild moderate severe extreme,%0*),0)]=
+		0?, { @pemit %#=I can't find that player.},
+		10, { @pemit %#=Valid types are physical, mental, social, and hunger.},
+		11, { @pemit %#=Valid levels are mild, moderate, severe, and extreme.},
+		11, { @remit loc(%#)=GAME: %K set a new %q0 %q1 consequence on %oself: %ch%2%cn;
+			@cemit Rolls= %K set a new %q0 %q1 consequence on %oself: %ch%2%cn;
+			 &_consequence_[edit(%2,%b,_)] %#=[lcstr(%q0)]/[lcstr(%q1)]/
+			[switch(%q0,mild,-2,moderate,-4,severe,-6,extreme,-8,0)]/[secs()];
+
+			@if strmatch(%q0,extreme)=
+			{ @cemit Staff=%K set a new %q0 %q1 consequence on %oself: %ch%2%cn;}
+		}
+-
