@@ -1,0 +1,114 @@
+##
+##  Project Name: meetme.mux 
+##
+##  Author:       Lem Canady (lem@lemuelcanady.com)
+##
+##  Description:  +meetme system for ... whatever the name of the mux is.  It's too late
+##                to keep track of these kinds of details!  Seriously though.  This code
+##                was formatted for MUSHFormatter.  It's a dead project, but any code
+##                code formatter can be used.  If there's interest in the future,  I'll
+##                make a non-formatted version of this file.
+##
+##
+
+
+##
+## +meetme
+## Syntax: +meetme <name>
+##   This command sends a request to player <name> to join you at your current location.
+##   both parties must be approved before this command can be used.
+
+&cmd_+meetme meetme object=
+    $+meetme *:
+        @switch [udefault(lock,1,%#)]
+                [isdbref(setr(0,pmatch(secure(%0))))]=
+        0?, {@pemit %#=Permission denied.},
+        10, {@pemit %#=I can't find that player.},
+        11,     {   @pemit %#=GAME: +meetme request sent to [moniker(%q0)].;
+                    @pemit %q0= GAME: [name(%#)] just sent you a +meetme request.%r
+                        GAME: Type '%ch+agree%cn' to agree or '%ch+decline%cn' to%b
+                        decline.;
+                    &_meet %q0=%#;
+                    @wait 60=@fo %q0=+decline;
+                }
+-
+##
+## +join
+##  SYNTAX: +join <name> 
+##   
+##    The +join command sends a request to another player to join them at their
+##    Current location.  Both the enactor of this command and the target must be able
+##    to pass the current lock on the +meetme system.
+
+&cmd_+join #174=
+    $+join *:
+        @switch [udefault(lock,1,%#)]=
+        1,  {   @switch/first 1=
+                    [hasattr(%#,_meet)],
+                        {@pemit %#=GAME: You already have an active +meetme transaction.},
+                    [hasattr(%#,_summon)],
+                        {@pemit %#=GAME: You already have an active +join transaction.},
+                        {   @switch [isdbref(setr(0,pmatch(secure(%0)))))]
+                                    [hasattr(%q0,CONNECTED)]
+                                    [udefault(lock,1,%q0)]=
+                            0??, {@Pemit %#=I can't find that player.},
+                            10?, {@pemit %#=That player is not connected.},
+                            110, {@pemit %#=You can't +join that player.},
+                            111, {  @pemit %#=GAME: +join request sent to [name(%q0)].;
+                                    
+                                 }
+                        
+                        } 
+            }
+                
+-
+
+## +agree
+##  SYNTAX: +agree
+##
+##      The +agree command allows the receiving player to agree to either be brought too
+##      or joined by someone using the +meetme system. 
+
+&cmd_+agree meetme object=
+    $+agree:
+        @switch [udefault(lock,1,%#)]=
+        0, {@pemit %#=Permission denied.},
+        1, {    @switch/first 1=
+                    hasattr(%#,_MEET),
+                        {   @tel %#=[loc(get(%#/_meet))];
+                            @remit loc(%#) = GAME: [name(%#)] arrives in a puff of smoke.;
+                            &_meet %#=;
+                        },
+                    hasattr(%#,_summon),
+                        {   @tel [get(%#/_summon)] = [loc(%#)];
+                            @remit [loc(%#)] = GAME: [name(get(%#/_SUMMON))] arrives in%b
+                                a puff of magic!;
+                            &_summon %#=;
+                        }
+            }
+            
+-
+
+## +decline
+##  SYNTAX: +decline
+##
+##      The +decline command allows the receiving player to cancel a +meetme or +join
+##      request.  If the receiving player does not respond to a +meetme or +join
+##      request within sixty seconds, they will automatically +decline.
+
+&cmd_+decline #174=
+    $+decline:
+        @switch [udefault(lock,1,%#)]=
+        0, {@pemit %#=Permission denied.},
+        1, {    @switch/first 1=
+                    hasattr(%#,_meet),
+                        {   @pemit %#=GAME:  You decline [name(get(%#/_meet))]'s%b
+                                +meetme request.;
+                            @pemit [get(%#/_meet)] =GAME: [name(%#)] declined your%b
+                                +meetme request.;
+                            &_meet %#=;
+                        },
+                    hasattr(%#,_summon),
+                        {   @pemit %#=GAME: You have no +meetme requests to decline.},
+            }
+-        
